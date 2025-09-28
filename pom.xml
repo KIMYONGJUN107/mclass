@@ -5,12 +5,12 @@
 
     <modelVersion>4.0.0</modelVersion>
 
-    <!-- 부모 프로젝트: 스프링부트 버전 관리 -->
+    <!-- Spring Boot Parent -->
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.2.0</version> <!-- Spring Boot 버전 -->
-        <relativePath/> <!-- Maven Central에서 가져오도록 설정 -->
+        <version>3.2.0</version>
+        <relativePath/>
     </parent>
 
     <groupId>com.example</groupId>
@@ -19,20 +19,18 @@
     <name>demo</name>
     <description>Demo project for Spring Boot</description>
 
-    <!-- 프로젝트 속성 -->
     <properties>
         <java.version>17</java.version>
     </properties>
 
-    <!-- 의존성 -->
     <dependencies>
-        <!-- Web (REST API) -->
+        <!-- Spring Web -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
 
-        <!-- JPA (Hibernate 포함) -->
+        <!-- Spring Data JPA -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-jpa</artifactId>
@@ -49,3 +47,18 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <!-- Spring Boot Plugin -->
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>
