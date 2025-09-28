@@ -2,19 +2,19 @@ pipeline {
     agent any
 
     tools {
-        maven 'maven-3.9'
-        jdk 'jdk-17'
+        maven 'maven 3.9.11'
+        jdk   'JAVA_HOME'
     }
 
     environment {
-        DOCKER_IMAGE      = "demo-app"
-        CONTAINER_NAME    = "springboot-container"
-        JAR_FILE_NAME     = "app.jar"
-        PORT              = "8081"
+        DOCKER_IMAGE       = "demo-app"
+        CONTAINER_NAME     = "springboot-container"
+        JAR_FILE_NAME      = "app.jar"
+        PORT               = "8081"
 
-        REMOTE_USER       = "ec2-user"
-        REMOTE_HOST       = "3.36.75.248"
-        REMOTE_DIR        = "/home/ec2-user/deploy"
+        REMOTE_USER        = "ec2-user"
+        REMOTE_HOST        = "3.36.75.248"
+        REMOTE_DIR         = "/home/ec2-user/deploy"
         SSH_CREDENTIALS_ID = "0cd8d549-5d40-4b2d-b75e-aca40bc78520"
     }
 
@@ -39,7 +39,11 @@ pipeline {
                 echo "Copying artifacts to remote server..."
                 sshagent(credentials: [SSH_CREDENTIALS_ID]) {
                     script {
-                        def builtJar = findFiles(glob: 'target/*.jar')[0].path
+                        def builtJars = findFiles(glob: 'target/*.jar')
+                        if (builtJars.length == 0) {
+                            error "No JAR file found in target/"
+                        }
+                        def builtJar = builtJars[0].path
                         echo "Found built JAR: ${builtJar}"
 
                         sh """
@@ -59,6 +63,7 @@ pipeline {
                     sh """
                         ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} << 'ENDSSH'
                             cd ${REMOTE_DIR} || exit 1
+
                             echo "Stopping and removing old container..."
                             docker rm -f ${CONTAINER_NAME} || true
 
