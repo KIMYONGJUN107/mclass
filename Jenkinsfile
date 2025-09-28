@@ -2,6 +2,7 @@ pipeline {
     agent any
 
     tools {
+        // Jenkins Global Tool Configuration에 등록된 이름
         maven 'maven 3.9.11'
         jdk   'JAVA_HOME'
     }
@@ -46,11 +47,12 @@ pipeline {
                         def builtJar = builtJars[0].path
                         echo "Found built JAR: ${builtJar}"
 
-                        sh """
-                            ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} 'mkdir -p ${REMOTE_DIR}'
-                            scp -o StrictHostKeyChecking=no ${builtJar} ${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_DIR}/${JAR_FILE_NAME}
-                            scp -o StrictHostKeyChecking=no Dockerfile ${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_DIR}/
-                        """
+                        // 원격 서버 디렉토리 생성
+                        sh "ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} 'mkdir -p ${REMOTE_DIR}'"
+
+                        // JAR & Dockerfile 전송
+                        sh "scp -o StrictHostKeyChecking=no ${builtJar} ${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_DIR}/${JAR_FILE_NAME}"
+                        sh "scp -o StrictHostKeyChecking=no Dockerfile ${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_DIR}/"
                     }
                 }
             }
