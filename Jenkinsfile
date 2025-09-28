@@ -61,7 +61,7 @@ pipeline {
                 echo "Building and deploying Docker container on remote server..."
                 sshagent(credentials: [SSH_CREDENTIALS_ID]) {
                     sh """
-                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} << 'ENDSSH'
+                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} '
                             cd ${REMOTE_DIR} || exit 1
 
                             echo "Stopping and removing old container..."
@@ -72,7 +72,7 @@ pipeline {
 
                             echo "Running new container..."
                             docker run -d --name ${CONTAINER_NAME} -p ${PORT}:${PORT} ${DOCKER_IMAGE}
-                        ENDSSH
+                        '
                     """
                 }
             }
