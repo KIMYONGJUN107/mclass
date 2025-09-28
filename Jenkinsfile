@@ -1,72 +1,83 @@
 pipeline {
-    agent any // 어떤 에이전트(실행 서버)에서든 실행 가능 
+    agent any
 
-    tool{
-       maven 'maven 3.9.11' // Jenkins에 등록된 Maven 3.9.11을 사용 
-    }   
-    
-    enviroment{
-        //배포에 필요한 변수 설정 
-        DOCKER_IMAGE = "demo-app" //도커 이미지 이름
-        CONTAINER_NAME = "springboot-container" // 도커 컨테이너 이름
-        JAR_FILE_NAME = "app.jar" // 복사할 JAR 파일 이름 
-        PORT = "8081" // 컨테이너와 연결할 포트
+    tools {
+        maven 'maven-3.9'
+        jdk 'jdk-17'
+    }
 
-        REMOTE_USER = "ec2-user" // 원격 (Spring) 서버 사용자
-        REMOTE_HOST = "3.36.75.248" // 원격 (Spring) 서버 사용자 
+    environment {
+        DOCKER_IMAGE      = "demo-app"
+        CONTAINER_NAME    = "springboot-container"
+        JAR_FILE_NAME     = "app.jar"
+        PORT              = "8081"
 
-        REMOTE_DIR = "/home/ec2-user/deploy" //원격 서버에 파일 복사할 경로 
-        SSH_CREDENTIALS_ID = "0cd8d549-5d40-4b2d-b75e-aca40bc78520" // Jenkins SSH 자격 증명 ID 
+        REMOTE_USER       = "ec2-user"
+        REMOTE_HOST       = "3.36.75.248"
+        REMOTE_DIR        = "/home/ec2-user/deploy"
+        SSH_CREDENTIALS_ID = "0cd8d549-5d40-4b2d-b75e-aca40bc78520"
     }
 
     stages {
         stage('Git Checkout') {
-            steps { // step : stage 안에서 실행할 실제 명령어 
-                // Jenkins가 연결된 Git 저장소에서 최신 코드 체크아웃 
-                Checkout scm
+            steps {
+                echo "Checking out from Git..."
+                checkout scm
             }
         }
 
-        stage('Maven Build'){
+        stage('Maven Build') {
             steps {
-                //테스트는 건너뛰고 Maven 빌드
-                sh 'mvn clean package -DskipTests'
-                // sh 'echo Hello' : 리눅스 명령어 실행 
+                echo "Building with Maven..."
+                sh 'chmod +x ./mvnw'
+                sh './mvnw clean package -DskipTests'
             }
         }
 
-        stage('prepare Jar'){
-            // 빌드 결과물인 JAR 파일을 지정한 이름(app.jar)으로 복사 
-            sh 'cp target/demo-0.0.1-SNAPSHOT.jar $(JAR_FILE_NAME)'
-        }
-
-        stage('Copy to Remote Server'){
+        stage('Copy Artifacts to Server') {
             steps {
-                // Jenkins가 원격  서버에 SSH 접속할 수 있도록 sshagent 사용
-                sshagent (credentials: [enviroment.SSH_CREDENTIALS_ID]){
-                   // 원격 서버에 배포 디렉토리 생성 
-                   sh "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ${REMOTE_USER}@${REMOTE_HOST} \"mkdir -p ${REMOTE_DIR}\""
-                   // JAR 파일과 Dockerfile을 원격 서버에 복사
-                   sh "scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ${JAR_FILE_NAME} Dockerfile ${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_DIR}/"    
+                echo "Copying artifacts to remote server..."
+                sshagent(credentials: [SSH_CREDENTIALS_ID]) {
+                    script {
+                        def builtJar = findFiles(glob: 'target/*.jar')[0].path
+                        echo "Found built JAR: ${builtJar}"
+
+                        sh """
+                            ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} 'mkdir -p ${REMOTE_DIR}'
+                            scp -o StrictHostKeyChecking=no ${builtJar} ${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_DIR}/${JAR_FILE_NAME}
+                            scp -o StrictHostKeyChecking=no Dockerfile ${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_DIR}/
+                        """
+                    }
                 }
             }
+        }
+
         stage('Remote Docker Build & Deploy') {
-            steps{
-                sshagent (credentials : [enviroment.SSH_CREDENTIALS_ID]) {// 원격 서버에서 도커 컨테이너를 제거하고 새로 빌드 및 실행
+            steps {
+                echo "Building and deploying Docker container on remote server..."
+                sshagent(credentials: [SSH_CREDENTIALS_ID]) {
                     sh """
-                    ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ${REMOTE_USER}@${REMOTE_HOST} << ENDSSH
-                        cd ${REMOTE_DIR} || exit 1                          # 복사한 디렉토리로 이동
-                        docker rm -f ${CONTAINER_NAME} || true             # 이전에 실행 중인 컨테이너 삭제 (없으면 무시)
-                        docker build -t ${DOCKER_IMAGE} .                  # 현재 디렉토리에서 Docker 이미지 빌드
-                        docker run -d --name ${CONTAINER_NAME} -p ${PORT}:${PORT} ${DOCKER_IMAGE} # 새 컨테이너 실행
-                    ENDSSH
+                        ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} << 'ENDSSH'
+                            cd ${REMOTE_DIR} || exit 1
+                            echo "Stopping and removing old container..."
+                            docker rm -f ${CONTAINER_NAME} || true
+
+                            echo "Building new Docker image..."
+                            docker build -t ${DOCKER_IMAGE} .
+
+                            echo "Running new container..."
+                            docker run -d --name ${CONTAINER_NAME} -p ${PORT}:${PORT} ${DOCKER_IMAGE}
+                        ENDSSH
                     """
                 }
             }
         }
-
-        }
-
     }
 
+    post {
+        always {
+            echo "Cleaning up workspace..."
+            cleanWs()
+        }
+    }
 }
